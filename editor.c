@@ -9,6 +9,7 @@
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ABUF_INIT {NULL,0}
+#define EDITOR_VERSION "0.0.1"
 
 struct editorConfig {
 
@@ -154,7 +155,32 @@ void editorDrawRows(struct abuf *ab){
 	int y;
 	// Terminal size - Unsure temorarily set to 24 rows
 	for(y = 0; y < E.screenrows; y++){
-		abAppend(ab, "~",1); // Vim style tilde columns 
+
+		if(y == E.screenrows / 3){
+
+			char welcome[80];
+			int welcomelen = snprintf(welcome, sizeof(welcome), "Editor -- version %s", EDITOR_VERSION);
+
+			// Text out of bounds handler
+			if(welcomelen > E.screencols)
+				welcomelen = E.screencols;
+
+			// Add padding to get text to center of screen
+			int padding = (E.screencols - welcomelen) / 2;
+			if(padding){
+
+				abAppend(ab, "~",1);
+				padding--;
+			}
+			while (padding--)
+				abAppend(ab, " ",1);
+
+			abAppend(ab, welcome, welcomelen);
+		}
+		else{
+
+			abAppend(ab, "~",1); // Vim style tilde columns 
+		}
 
 		abAppend(ab, "\x1b[K",3); // Erases current part of current line
 
