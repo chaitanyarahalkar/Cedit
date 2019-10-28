@@ -5,8 +5,10 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
+#define ABUF_INIT {NULL,0}
 
 struct editorConfig {
 
@@ -71,13 +73,44 @@ char editorReadKey(){
 	return c;
 }
 
+int getCursorPosition(int *rows,int *cols){
+
+	char buf[32];
+	unsigned int i = 0; 
+
+
+
+	if(write(STDOUT_FILENO, "\x1b[6n",4) != 4)
+		return -1;
+
+	while(i < sizeof(buf) - 1){
+		if(read(STDIN_FILENO, &buf[i],1) != 1)
+			break;
+
+		if(buf[i] == 'R')
+			break;
+
+		i++;	
+
+	}
+	buf[i] = '\0';
+	if (buf[0] != '\x1b' || buf[1] != '[') return -1;
+  	if (sscanf(&buf[2], "%d;%d", rows, cols) != 2) return -1;
+  	return 0;
+}
+
 // Utility function to get size of window
 int getWindowSize(int *rows, int *cols){
 	struct winsize ws;
 
 	// ioctl syscall 
 	if(ioctl(STDOUT_FILENO,TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
-		return -1;
+
+		// Escape sequence to send cursor move to right and then down (999 px)
+		if(write(STDOUT_FILENO, "\x1b[999C\xb[999B",12) != 12)
+			return -1;
+
+		return getCursorPosition(rows,cols);
 	}
 	else{
 
@@ -86,13 +119,49 @@ int getWindowSize(int *rows, int *cols){
 		return 0;
 	}
 }
+
+
+// Append buffer to limit write() syscalls
+struct abuf{
+
+	char *b;
+	int len;
+
+};
+
+void abAppend(struct abuf *ab, const char *s,int len){
+
+	char *new = realloc(ab->b, ab->len + len);
+
+	if(new == NULL)
+		return;
+
+	memcpy(&new[ab->len],s,len);
+
+	ab->b = new;
+	ab->len += len;
+}
+
+void abFree(struct abuf *ab){
+
+	// Free allocated buffer
+	free(ab->b);
+
+}
 // Draw tildes in the buffer and not actual file 
-void editorDrawRows(){
+void editorDrawRows(struct abuf *ab){
 
 	int y;
 	// Terminal size - Unsure temorarily set to 24 rows
-	for(y = 0; y < 24; y++){
-		write(STDOUT_FILENO, "~\r\n",3); // Vim style tilde columns 
+	for(y = 0; y < E.screenrows; y++){
+		abAppend(ab, "~",1); // Vim style tilde columns 
+
+		abAppend(ab, "\x1b[K",3); // Erases current part of current line
+
+		// Handle last line
+		if(y < E.screenrows - 1){
+			abAppend(ab,"\r\n",2);
+		}
 	}
 
 }
@@ -106,12 +175,21 @@ void editorDrawRows(){
 void  editorRefreshScreen(){
 
 
-	write(STDOUT_FILENO,"\x1b[2J",4); 
-	write(STDOUT_FILENO,"\x1b[H",3); // Reposition cursor to top-left corner
+	struct abuf ab = ABUF_INIT;
 
-	editorDrawRows();
+	abAppend(&ab, "\x1b[?25l",6); // To hide cursor while redrawing
+	abAppend(&ab,"\x1b[H",3); // Reposition cursor to top-left corner
 
-	write(STDOUT_FILENO,"\x1b[H",3);
+	editorDrawRows(&ab);
+
+	abAppend(&ab,"\x1b[H",3);
+	abAppend(&ab, "\x1b[?25h",6); // h -> set mode 
+
+	// Finally write the buffer to STDOUT
+	write(STDOUT_FILENO, ab.b, ab.len);
+
+	abFree(&ab);
+
 }
 void editorProcessKeypress(){
 
