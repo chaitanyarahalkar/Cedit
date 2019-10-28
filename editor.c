@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -25,13 +26,23 @@ enum editorKey {
 
 };
 
+// To store text from editor
+typedef struct erow {
+
+	int size;
+	char *chars;
+
+}erow;
+
+
 struct editorConfig {
 
 	struct termios orig_termios;
 	int screenrows;
 	int screencols;
+	int numrows;
 	int cx,cy;
-
+	erow row;
 };
 
 struct editorConfig E;
@@ -196,7 +207,40 @@ int getWindowSize(int *rows, int *cols){
 	}
 }
 
+void editorOpen(char *filename){
 
+	FILE *fp = fopen(filename, "r");
+	if(!fp) 
+		die("fopen");
+
+	char *line = NULL;
+	size_t linecap = 0;
+	ssize_t linelen;
+
+	// File reader 
+
+	linelen = getline(&line, &linecap, fp);
+
+	if(linelen != -1){
+
+		while(linelen > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\r'))
+			linelen--;
+
+
+		E.row.size = linelen;
+		E.row.chars = malloc(linelen + 1);
+
+		memcpy(E.row.chars,line,linelen);
+		E.row.chars[linelen] = '\0';
+		E.numrows = 1;
+
+
+	}
+
+	free(line);
+	fclose(fp);
+
+}
 // Append buffer to limit write() syscalls
 struct abuf{
 
@@ -225,45 +269,56 @@ void abFree(struct abuf *ab){
 
 }
 // Draw tildes in the buffer and not actual file 
-void editorDrawRows(struct abuf *ab){
+void editorDrawRows(struct abuf *ab) {
+  int y;
 
-	int y;
-	// Terminal size - Unsure temorarily set to 24 rows
-	for(y = 0; y < E.screenrows; y++){
+  for (y = 0; y < E.screenrows; y++) {
 
-		if(y == E.screenrows / 3){
+    if (y >= E.numrows) {
 
-			char welcome[80];
-			int welcomelen = snprintf(welcome, sizeof(welcome), "Editor -- version %s", EDITOR_VERSION);
+      // Print welcome message to center of terminal 
+      if (y == E.screenrows / 3) {
 
-			// Text out of bounds handler
-			if(welcomelen > E.screencols)
-				welcomelen = E.screencols;
+        char welcome[80];
+        int welcomelen = snprintf(welcome, sizeof(welcome),
+          "Editor -- version %s", EDITOR_VERSION);
 
-			// Add padding to get text to center of screen
-			int padding = (E.screencols - welcomelen) / 2;
-			if(padding){
+        if (welcomelen > E.screencols) welcomelen = E.screencols;
 
-				abAppend(ab, "~",1);
-				padding--;
-			}
-			while (padding--)
-				abAppend(ab, " ",1);
+        int padding = (E.screencols - welcomelen) / 2;
 
-			abAppend(ab, welcome, welcomelen);
-		}
-		else{
+        if (padding) {
 
-			abAppend(ab, "~",1); // Vim style tilde columns 
-		}
+          abAppend(ab, "~", 1);
+          padding--;
 
-		abAppend(ab, "\x1b[K",3); // Erases current part of current line
+        }
+        while (padding--) abAppend(ab, " ", 1);
+        abAppend(ab, welcome, welcomelen);
+      } 
+      else {
 
-		// Handle last line
-		if(y < E.screenrows - 1){
-			abAppend(ab,"\r\n",2);
-		}
-	}
+        abAppend(ab, "~", 1);
+
+      }
+
+    } 
+    else {
+
+      // Wrapping lines
+      int len = E.row.size;
+      if (len > E.screencols) len = E.screencols;
+      abAppend(ab, E.row.chars, len);
+
+    }
+    abAppend(ab, "\x1b[K", 3);
+    if (y < E.screenrows - 1) {
+
+      abAppend(ab, "\r\n", 2);
+
+    }
+
+  }
 
 }
 /*
@@ -369,6 +424,7 @@ void initEditor(){
 	// Base position of cursor
 	E.cx = 0;
 	E.cy = 0;
+	E.numrows = 0;
 
 	if(getWindowSize(&E.screenrows, &E.screencols) == -1)
 		die("getWindowSize");
@@ -380,6 +436,7 @@ int main(){
 
 	enableRawMode();
 	initEditor();
+	editorOpen();
 
 	while (1){
 		editorRefreshScreen();
