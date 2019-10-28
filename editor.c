@@ -12,6 +12,10 @@ struct termios orig_termios;
 
 // Error handler
 void die(const char *s){
+
+	write(STDOUT_FILENO,"\x1b[2J",4); // Clear screen on exit
+	write(STDOUT_FILENO, "\x1b[H",3); // Reposition on exit
+	
 	perror(s);
 	exit(1);
 }
@@ -59,20 +63,31 @@ char editorReadKey(){
 	}
 	return c;
 }
+// Draw tildes in the buffer and not actual file 
+void editorDrawRows(){
 
+	int y;
+	for(y = 0; y < 24; y++){
+		write(STDOUT_FILENO, "~\r\n",3); // Vim style tilde columns 
+	}
+
+}
+/*
+	Write 4 bytes 
+	\x1b = Escape character <ESC>
+	[ = Begining of escape sequence
+	J = Erase in display
+	2 = Argument of J command (Clear entire screen)
+*/
 void  editorRefreshScreen(){
 
-	/*
-		Write 4 bytes 
-		\x1b = Escape character <ESC>
-		[ = Begining of escape sequence
-		J = Erase in display
-		2 = Argument of J command (Clear entire screen)
 
-	*/
 	write(STDOUT_FILENO,"\x1b[2J",4); 
+	write(STDOUT_FILENO,"\x1b[H",3); // Reposition cursor to top-left corner
 
+	editorDrawRows();
 
+	write(STDOUT_FILENO,"\x1b[H",3);
 }
 void editorProcessKeypress(){
 
@@ -85,6 +100,7 @@ void editorProcessKeypress(){
 	}
 
 }
+
 
 // Init code 
 
