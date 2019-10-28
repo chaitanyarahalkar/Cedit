@@ -11,11 +11,21 @@
 #define ABUF_INIT {NULL,0}
 #define EDITOR_VERSION "0.0.1"
 
+enum editorKey {
+
+  ARROW_LEFT = 1000,
+  ARROW_RIGHT,
+  ARROW_UP,
+  ARROW_DOWN
+
+};
+
 struct editorConfig {
 
 	struct termios orig_termios;
 	int screenrows;
 	int screencols;
+	int cx,cy;
 
 };
 
@@ -63,7 +73,7 @@ void enableRawMode() {
 }
 
 // Manage low level terminal input 
-char editorReadKey(){
+int editorReadKey(){
 	int nread;
 	char c;
 
@@ -71,7 +81,37 @@ char editorReadKey(){
 		if(nread == -1 && errno == EAGAIN)
 			die("read");
 	}
-	return c;
+
+	if(c == '\x1b'){
+
+		char seq[3];
+
+		if(read(STDIN_FILENO, &seq[0],1) != 1)
+			return "\x1b";
+
+		if(read(STDIN_FILENO, &seq[1],1) != 1)
+			return "\x1b";
+
+		// To move cursor with arrow keys
+		if(seq[0] == '['){
+
+			switch(seq[1]){
+
+				case 'A': return ARROW_UP;
+				case 'B': return ARROW_DOWN;
+				case 'C': return ARROW_RIGHT;
+				case 'D': return ARROW_LEFT;
+
+
+			}
+		
+		}
+		return "\x1b";
+	}
+	else{
+
+		return c;
+	}
 }
 
 int getCursorPosition(int *rows,int *cols){
@@ -208,7 +248,10 @@ void  editorRefreshScreen(){
 
 	editorDrawRows(&ab);
 
-	abAppend(&ab,"\x1b[H",3);
+	char buf[32];
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1); // Specify exact position of cursor 
+	abAppend(&ab, buf, strlen(buf));
+
 	abAppend(&ab, "\x1b[?25h",6); // h -> set mode 
 
 	// Finally write the buffer to STDOUT
@@ -217,19 +260,54 @@ void  editorRefreshScreen(){
 	abFree(&ab);
 
 }
+
+void editorMoveCursor(int key){
+
+	switch(key){
+
+		case ARROW_LEFT:
+			E.cx--;
+			break;
+
+		case ARROW_RIGHT:
+			E.cx++;
+			break;
+
+		case ARROW_UP:
+			E.cy--;
+			break;
+
+		case ARROW_DOWN:
+			E.cy++;
+			break;
+
+	}
+
+}
 void editorProcessKeypress(){
 
-	char c = editorReadKey();
+	int c = editorReadKey();
 
 	switch(c){
 		case CTRL_KEY('q'): 
 			exit(0); 
+			break;
+
+		case ARROW_UP:
+		case ARROW_DOWN:
+		case ARROW_LEFT:
+		case ARROW_RIGHT:
+			editorMoveCursor(c);
 			break;
 	}
 
 }
 
 void initEditor(){
+
+	// Base position of cursor
+	E.cx = 0;
+	E.cy = 0;
 
 	if(getWindowSize(&E.screenrows, &E.screencols) == -1)
 		die("getWindowSize");
