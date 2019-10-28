@@ -2,14 +2,21 @@
 #include <termios.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <sys/ioctl.h>
 #include <errno.h>
 #include <stdio.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+struct editorConfig {
 
-struct termios orig_termios;
+	struct termios orig_termios;
+	int screenrows;
+	int screencols;
 
+};
+
+struct editorConfig E;
 // Error handler
 void die(const char *s){
 
@@ -21,18 +28,18 @@ void die(const char *s){
 }
 
 void disableRawMode() {
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios);
   die("tcsetattr");
 }
 
 void enableRawMode() {
 
-  if(tcgetattr(STDIN_FILENO, &orig_termios) == -1) // Termos attribute setter 
+  if(tcgetattr(STDIN_FILENO, &E.orig_termios) == -1) // Termos attribute setter 
   	die("tcgetattr");
 
   atexit(disableRawMode); // Disable raw mode at exit 
 
-  struct termios raw = orig_termios;
+  struct termios raw = E.orig_termios;
   /*
   	 - Disable echo and canonical mode
   	 - Disable SIGINT SIGTSTP signals
@@ -63,10 +70,27 @@ char editorReadKey(){
 	}
 	return c;
 }
+
+// Utility function to get size of window
+int getWindowSize(int *rows, int *cols){
+	struct winsize ws;
+
+	// ioctl syscall 
+	if(ioctl(STDOUT_FILENO,TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
+		return -1;
+	}
+	else{
+
+		*cols = ws.ws_col;
+		*rows = ws.ws_row;
+		return 0;
+	}
+}
 // Draw tildes in the buffer and not actual file 
 void editorDrawRows(){
 
 	int y;
+	// Terminal size - Unsure temorarily set to 24 rows
 	for(y = 0; y < 24; y++){
 		write(STDOUT_FILENO, "~\r\n",3); // Vim style tilde columns 
 	}
@@ -101,12 +125,18 @@ void editorProcessKeypress(){
 
 }
 
+void initEditor(){
+
+	if(getWindowSize(&E.screenrows, &E.screencols) == -1)
+		die("getWindowSize");
+}
 
 // Init code 
 
 int main(){
 
 	enableRawMode();
+	initEditor();
 
 	while (1){
 		editorRefreshScreen();
