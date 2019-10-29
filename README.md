@@ -1,4 +1,5 @@
 # Editor
+<img src="https://travis-ci.org/chaitanyarahalkar/Editor.svg?branch=master">
 A minimalistic text editor for the terminal fanatics
 
 ## What is Editor? 
