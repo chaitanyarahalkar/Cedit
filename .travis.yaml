@@ -1,3 +1,0 @@
-language: c
-compiler: clang
-script: make 
