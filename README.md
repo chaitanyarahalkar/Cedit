@@ -1,5 +1,6 @@
 # Editor
-<img src="https://travis-ci.org/chaitanyarahalkar/Editor.svg?branch=master">
+[![Build Status](https://travis-ci.org/chaitanyarahalkar/Editor.svg?branch=master)](https://travis-ci.org/chaitanyarahalkar/Editor)
+
 A minimalistic text editor for the terminal fanatics
 
 ## What is Editor? 
