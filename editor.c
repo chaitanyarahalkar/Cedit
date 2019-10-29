@@ -59,7 +59,7 @@ struct editorConfig {
 	int coloff; // For horizontal scrolling
 	erow *row;
 	char *filename;
-	char statusmessage[80];
+	char statusmsg[80];
 	time_t statusmsg_time;
 };
 
@@ -332,6 +332,22 @@ void abFree(struct abuf *ab){
 
 }
 
+int editorRowCxToRx(erow *row, int cx){
+
+	int rx = 0;
+	int j;
+
+	for(j = 0; j < cx; j++){
+
+		if(row->chars[j] == '\t')
+			rx += (EDITOR_TAB_STOP - 1) - (rx % EDITOR_TAB_STOP);
+
+		rx++;
+	}
+
+	return rx;
+}
+
 void editorScroll(){
 
 	E.rx = 0;
@@ -361,9 +377,9 @@ void editorDrawStatusBar(struct abuf *ab){
 	abAppend(ab, "\x1b[7m",4);
 
 	char status[80],rstatus[80];
-	int len = sprintf(status, sizeof(status), "%.20s - %d lines", E.filename ? E.filename : "[No Name]", E.numrows);
+	int len = snprintf(status, sizeof(status), "%.20s - %d lines", E.filename ? E.filename : "[No Name]", E.numrows);
 
-	int rlen = sprintf(rstatus, sizeof(rstatus), "%d%d",E.cy + 1, E.numrows);
+	int rlen = snprintf(rstatus, sizeof(rstatus), "%d%d",E.cy + 1, E.numrows);
 
 	if(len > E.screencols)
 		len = E.screencols;
@@ -458,22 +474,6 @@ void editorDrawRows(struct abuf *ab) {
 
   }
 
-}
-
-int editorRowCxToRx(erow *row, int cx){
-
-	int rx = 0;
-	int j;
-
-	for(j = 0; j < cx; j++){
-
-		if(row->chars[j] == '\t')
-			rx += (EDITOR_TAB_STOP - 1) - (rx % EDITOR_TAB_STOP);
-
-		rx++;
-	}
-
-	return rx;
 }
 
 /*
