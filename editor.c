@@ -304,6 +304,31 @@ void editorOpen(char *filename){
 	fclose(fp);
 
 }
+
+void editorRowInsertChar(erow *row, int at, int c){
+
+	if(at < 0 || at > row->size)
+		at = row->size;
+
+	row->chars = realloc(row->chars,row->size + 2);
+	memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+	row->size++;
+	row->chars[at] = c;
+
+	editorUpdateRow(row);
+
+}
+
+void editorInsertChar(int c){
+
+	// Cursor on tilde line after end of file
+	if(E.cy == E.numrows)
+		editorAppendRow("",0);
+
+	editorRowInsertChar(&E.row[E.cy], E.cx, c);
+	E.cx++;
+
+}
 // Append buffer to limit write() syscalls
 struct abuf{
 
@@ -614,6 +639,11 @@ void editorProcessKeypress(){
 		case ARROW_RIGHT:
 			editorMoveCursor(c);
 			break;
+
+		default:
+			editorInsertChar(c);
+			break;
+			
 	}
 
 }
