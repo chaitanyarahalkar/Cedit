@@ -9,3 +9,6 @@ Editor is a zero-dependency text editor for the terminal. Editor is similar to o
 ## What can Editor do?
 
 Editor is currently in development mode. 
+
+Editor can 
+1. Search 
