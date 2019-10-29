@@ -75,8 +75,8 @@ void die(const char *s){
 }
 
 void disableRawMode() {
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios);
-  die("tcsetattr");
+  if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
+  	die("tcsetattr");
 }
 
 void enableRawMode() {
