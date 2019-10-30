@@ -13,4 +13,5 @@ Editor is a zero-dependency text editor for the terminal. Editor is similar to o
 Editor is currently in development mode. 
 
 Editor can 
-1. Search 
+1. Search
+2. Supports syntax highlighting 
