@@ -626,7 +626,7 @@ int editorRowRxToCx(erow *row, int rx) {
   for (cx = 0; cx < row->size; cx++) {
 
     if (row->chars[cx] == '\t')
-      cur_rx += (KILO_TAB_STOP - 1) - (cur_rx % KILO_TAB_STOP);
+      cur_rx += (EDITOR_TAB_STOP - 1) - (cur_rx % EDITOR_TAB_STOP);
 
     cur_rx++;
 
@@ -651,7 +651,7 @@ void editorFindCallback(char *query, int key){
 		direction = 1;
     	return;
 	}
-	else if(key == ARROW_RIGHT || ARROW_DOWN)
+	else if(key == ARROW_RIGHT || key == ARROW_DOWN)
 		direction = 1;
 
 	else if(key == ARROW_LEFT  || key == ARROW_UP)
