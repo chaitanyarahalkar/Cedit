@@ -372,8 +372,17 @@ char* editorRowsToString(int *buflen){
 void editorSave(){
 
 
-	if(E.filename == NULL)
-		E.filename = editorPrompt("Save as: %s");
+	if(E.filename == NULL){
+
+		E.filename = editorPrompt("Save as: %s (ESC to cancel)");
+		// Activate if user presses ESC
+		if(E.filename == NULL){
+
+			editorSetStatusMessage("Save aborted");
+			return;
+		}
+	}
+
 
 	int len; 
 	char *buf = editorRowsToString(&len);
@@ -415,8 +424,14 @@ char *editorPrompt(char *prompt) {
 
     int c = editorReadKey();
 
+
+    if(c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE){
+
+    	if(buflen != 0)
+    		buf[--buflen] = '\0';
+    }
     // ESC key to cancel Save As
-    if(c == '\x1b'){
+    else if(c == '\x1b'){
 
     	editorSetStatusMessage("");
     	free(buf);
