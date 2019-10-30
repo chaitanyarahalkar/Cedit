@@ -42,7 +42,8 @@ enum editorKey {
 enum editorHighlight{
 
 	HL_NORMAL = 0,
-	HL_NUMBER
+	HL_NUMBER,
+	HL_MATCH
 
 };
 // To store text from editor
@@ -243,18 +244,36 @@ int getWindowSize(int *rows, int *cols){
 	}
 }
 
+// returns true if separator character
+int is_separator(int c){
+
+	return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
+
+}
+
 void editorUpdateSyntax(erow *row){
 
 	row->hl = realloc(row->hl, row->rsize);
 	memset(row->hl, HL_NORMAL, row->rsize);
 
-	int i;
-	for(i = 0; i < row->rsize; i++){
+	int prev_sep = 1;
 
-		if(isdigit(row->render[i]))
+	int i;
+	while(i < row->rsize){
+
+		char c = row->render[i];
+		if((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)){
 			row->hl[i] = HL_NUMBER;
-		
+			i++;
+			prev_sep = 0;
+			continue;
+		}
+
+		prev_sep = is_separator(c);
+		i++;
+
 	}
+
 }
 
 int editorSyntaxToColor(int hl){
@@ -262,6 +281,8 @@ int editorSyntaxToColor(int hl){
 	switch(hl){
 
 		case HL_NUMBER: return 31; // Foreground red
+
+		case HL_MATCH: return 34; // Foreground blue
 
 		default: return 37; // Foreground white
 
@@ -682,6 +703,19 @@ void editorFindCallback(char *query, int key){
 	static int last_match = - 1;
 	static int direction = 1;
 
+
+	// Restore syntax highlighting after search
+	static int saved_hl_line;
+	static char *saved_hl = NULL;
+
+	if(saved_hl){
+
+		memcpy(E.row[saved_hl_line].hl, saved_hl, E.row[saved_hl_line].rsize);
+		free(saved_hl);
+		saved_hl = NULL;
+
+	}
+
 	if (key == '\r' || key == '\x1b'){
 
 		last_match = -1;
@@ -724,6 +758,12 @@ void editorFindCallback(char *query, int key){
 	      E.cy = current;
 	      E.cx = editorRowRxToCx(row, match - row->render);
 	      E.rowoff = E.numrows;
+
+	      saved_hl_line = current;
+	      
+	      saved_hl = malloc(row->rsize);
+	      memcpy(saved_hl, row->hl, row->rsize);
+	      memset(&row->hl[match - row->render], HL_MATCH, strlen(query));
 	      break;
 
 	    }
