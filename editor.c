@@ -267,6 +267,19 @@ void editorUpdateRow(erow *row){
 
 }
 
+void editorRowDelChar(erow *row, int at) {
+
+  if (at < 0 || at >= row->size)
+  		return;
+
+  memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
+
+  row->size--;
+
+  editorUpdateRow(row);
+
+  E.dirty++;
+}
 
 // Function renaming
 void editorInsertRow(int at, char *s, size_t len){
@@ -488,7 +501,7 @@ void editorInsertNewline(){
 	else{
 
 		erow *row = &E.row[E.cy];
-		editorInsertRow(E.cy + 1,&row->chars[E.cx]. row->size - E.cx);
+		editorInsertRow(E.cy + 1,&row->chars[E.cx], row->size - E.cx);
 		row = &E.row[E.cy];
 		row->size = E.cx;
 		row->chars[row->size] = '\0';
@@ -498,6 +511,18 @@ void editorInsertNewline(){
 	E.cy++;
 	E.cx = 0;
 }
+
+void editorRowAppendString(erow *row, char *s, size_t len){
+
+	row->chars = realloc(row->chars, row->size + len + 1);
+	memcpy(&row->chars[row->size], s, len);
+	row->size += len;
+	row->chars[row->size] = '\0';
+	editorUpdateRow(row);
+	E.dirty++;
+
+}
+
 
 void editorDelChar(){
 
@@ -526,16 +551,6 @@ void editorDelChar(){
 	
 }
 
-void editorRowAppendString(erow *row, char *s, size_t len){
-
-	row->chars = realloc(row->chars, row->size + len + 1);
-	memcpy(&row->chars[row->size], s, len);
-	row->size += len;
-	row->chars[row->size] = '\0';
-	editorUpdateRow(row);
-	E.dirty++;
-
-}
 void editorInsertChar(int c){
 
 	// Cursor on tilde line after end of file
