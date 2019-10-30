@@ -72,6 +72,8 @@ struct editorConfig E;
 // Vararg function prototype
 
 void editorSetStatusMessage(const char *fmt, ...);
+void editorRefreshScreen();
+char *editorPrompt(char *prompt);
 
 // Error handler
 void die(const char *s){
@@ -266,13 +268,18 @@ void editorUpdateRow(erow *row){
 }
 
 
+// Function renaming
+void editorInsertRow(int at, char *s, size_t len){
 
-void editorAppendRow(char *s, size_t len){
+	// Adding enter key functionality
 
+	if(at < 0 || at >  E.numrows)
+		return;
 
 	E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+	memmove(&E.row[at + 1], &E.row[at], sizeof(erow) * (E.numrows - at));
 
-	int at = E.numrows;
+
 	E.row[at].size = len;
 	E.row[at].chars = malloc(len + 1);
 	memcpy(E.row[at].chars, s, len);
@@ -325,7 +332,7 @@ void editorOpen(char *filename){
 			while(linelen > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\r'))
 				linelen--;
 
-			editorAppendRow(line, linelen);
+			editorInsertRow(E.numrows, line, linelen);
 	}
 
 	free(line);
@@ -366,7 +373,7 @@ void editorSave(){
 
 
 	if(E.filename == NULL)
-		return;
+		E.filename = editorPrompt("Save as: %s");
 
 	int len; 
 	char *buf = editorRowsToString(&len);
@@ -393,6 +400,55 @@ void editorSave(){
 	editorSetStatusMessage("Cannot save! I/O error: %s", strerror(errno));
 
 }
+// Save as prompt when new file is created 
+char *editorPrompt(char *prompt) {
+
+  size_t bufsize = 128;
+  char *buf = malloc(bufsize);
+  size_t buflen = 0;
+  buf[0] = '\0';
+
+  while (1) {
+
+    editorSetStatusMessage(prompt, buf);
+    editorRefreshScreen();
+
+    int c = editorReadKey();
+
+    // ESC key to cancel Save As
+    if(c == '\x1b'){
+
+    	editorSetStatusMessage("");
+    	free(buf);
+    	return NULL;
+
+    }
+    else if (c == '\r') {
+
+      if (buflen != 0) {
+
+        editorSetStatusMessage("");
+        return buf;
+
+      }
+
+    } 
+    else if (!iscntrl(c) && c < 128) {
+
+      if (buflen == bufsize - 1) {
+
+        bufsize *= 2;
+        buf = realloc(buf, bufsize);
+
+      }
+      buf[buflen++] = c;
+      buf[buflen] = '\0';
+
+    }
+
+  }
+
+}
 void editorRowInsertChar(erow *row, int at, int c){
 
 	if(at < 0 || at > row->size)
@@ -406,6 +462,26 @@ void editorRowInsertChar(erow *row, int at, int c){
 	editorUpdateRow(row);
 	E.dirty++;
 
+}
+
+// Handles Enter Keystrokes
+void editorInsertNewline(){
+
+	if(E.cx == 0)
+		editorInsertRow(E.cy, "", 0);
+
+	else{
+
+		erow *row = &E.row[E.cy];
+		editorInsertRow(E.cy + 1,&row->chars[E.cx]. row->size - E.cx);
+		row = &E.row[E.cy];
+		row->size = E.cx;
+		row->chars[row->size] = '\0';
+		editorUpdateRow(row);
+
+	}
+	E.cy++;
+	E.cx = 0;
 }
 
 void editorDelChar(){
@@ -449,7 +525,7 @@ void editorInsertChar(int c){
 
 	// Cursor on tilde line after end of file
 	if(E.cy == E.numrows)
-		editorAppendRow("",0);
+		editorInsertRow(E.numrows, "", 0);
 
 	editorRowInsertChar(&E.row[E.cy], E.cx, c);
 	E.cx++;
@@ -726,7 +802,7 @@ void editorProcessKeypress(){
 	switch(c){
 
 		case '\r':
-
+			editorInsertNewline();
 			break;
 
 		case CTRL_KEY('q'):
