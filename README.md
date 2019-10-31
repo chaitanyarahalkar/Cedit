@@ -2,7 +2,7 @@
 [![Build Status](https://travis-ci.org/chaitanyarahalkar/Editor.svg?branch=master)](https://travis-ci.org/chaitanyarahalkar/Editor)
 [![GitHub license](https://img.shields.io/github/license/chaitanyarahalkar/Editor)](https://github.com/chaitanyarahalkar/Editor/blob/master/LICENSE)
 
-A minimalistic text editor for the terminal fanatics
+A minimalistic text editor for terminal fanatics
 
 ## What is Editor? 
 
