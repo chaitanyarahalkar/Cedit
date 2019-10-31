@@ -23,7 +23,10 @@
 #define EDITOR_VERSION "0.0.1"
 #define EDITOR_TAB_STOP 8
 #define EDITOR_QUIT_TIMES 1
+
+
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
+#define HL_HIGHLIGHT_STRINGS (1<<1)
 
 
 enum editorKey {
@@ -43,9 +46,14 @@ enum editorKey {
 
 enum editorHighlight{
 
-	HL_NORMAL = 0,
-	HL_NUMBER,
-	HL_MATCH
+  HL_NORMAL = 0,
+  HL_COMMENT,
+  HL_MLCOMMENT,
+  HL_KEYWORD1,
+  HL_KEYWORD2,
+  HL_STRING,
+  HL_NUMBER,
+  HL_MATCH
 
 };
 // To store text from editor
@@ -56,16 +64,24 @@ typedef struct erow {
 	char *chars;
 	char *render;
 	unsigned char *hl;
+	int idx;
+	int hl_open_comment;
 
 }erow;
 
+// Syntax highlighting struct
 struct editorSyntax {
 
   char *filetype;
   char **filematch;
+  char **keywords;
+  char *singleline_comment_start;
+  char *multiline_comment_start;
+  char *multiline_comment_end;
   int flags;
 
 };
+
 struct editorConfig {
 
 	struct termios orig_termios;
@@ -91,13 +107,26 @@ struct editorConfig E;
 
 char *C_HL_extensions[] = { ".c", ".h", ".cpp", NULL };
 
+char *C_HL_keywords[] = {
+
+  "switch", "if", "while", "for", "break", "continue", "return", "else",
+  "struct", "union", "typedef", "static", "enum", "class", "case",
+
+  "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+  "void|", NULL
+};
+
+
 struct editorSyntax HLDB[] = {
 
-  	{
-    	"c",
-    	C_HL_extensions,
-    	HL_HIGHLIGHT_NUMBERS
-  	},
+  {
+    "c",
+    C_HL_extensions,
+    C_HL_keywords,
+    "//", "/*", "*/",
+    HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+  },
+
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
@@ -137,8 +166,8 @@ void enableRawMode() {
   	 - Disable Ctrl-V
   */
   raw.c_lflag &= ~(ECHO | ICANON | IEXTEN |ISIG); 
-  raw.c_lflag &= ~(ICRNL | IXON); // Disable Ctrl-S, Ctrl-Q & Ctrl-M
-  raw.c_lflag &= ~(OPOST); // Turn off output processing
+  //raw.c_lflag &= ~(ICRNL | IXON); // Disable Ctrl-S, Ctrl-Q & Ctrl-M
+  raw.c_oflag &= ~(OPOST); // Turn off output processing
   raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON); // Miscellaneous flags
   raw.c_cflag |= (CS8);
   raw.c_cc[VMIN] = 0; // Minimum bytes of input needed before read() can return 
@@ -243,8 +272,12 @@ int getCursorPosition(int *rows,int *cols){
 
 	}
 	buf[i] = '\0';
-	if (buf[0] != '\x1b' || buf[1] != '[') return -1;
-  	if (sscanf(&buf[2], "%d;%d", rows, cols) != 2) return -1;
+	if (buf[0] != '\x1b' || buf[1] != '[') 
+		return -1;
+
+  	if (sscanf(&buf[2], "%d;%d", rows, cols) != 2)
+  		return -1;
+
   	return 0;
 }
 
@@ -276,43 +309,180 @@ int is_separator(int c){
 
 }
 
-void editorUpdateSyntax(erow *row){
+void editorUpdateSyntax(erow *row) {
 
-	row->hl = realloc(row->hl, row->rsize);
-	memset(row->hl, HL_NORMAL, row->rsize);
+  row->hl = realloc(row->hl, row->rsize);
+  memset(row->hl, HL_NORMAL, row->rsize);
 
-	if(E.syntax == NULL)
-		return;
+  if (E.syntax == NULL)
+  	return;
 
-	int prev_sep = 1;
+  char **keywords = E.syntax->keywords;
 
-	int i;
+  char *scs = E.syntax->singleline_comment_start;
+  char *mcs = E.syntax->multiline_comment_start;
+  char *mce = E.syntax->multiline_comment_end;
 
-	while(i < row->rsize){
+  int scs_len = scs ? strlen(scs) : 0;
+  int mcs_len = mcs ? strlen(mcs) : 0;
+  int mce_len = mce ? strlen(mce) : 0;
 
-		char c = row->render[i];
-		unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
+  int prev_sep = 1;
+  int in_string = 0;
+  int in_comment = (row->idx > 0 && E.row[row->idx - 1].hl_open_comment);
 
-		if(E.syntax->flags & HL_HIGHLIGHT_NUMBERS){
+  int i = 0;
+  while (i < row->rsize) {
 
-			if((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)){
-				row->hl[i] = HL_NUMBER;
-				i++;
-				prev_sep = 0;
-				continue;
-			}
+    char c = row->render[i];
+    unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
 
-		}
-		prev_sep = is_separator(c);
-		i++;
+    if (scs_len && !in_string && !in_comment) {
 
-	}
+      if (!strncmp(&row->render[i], scs, scs_len)) {
+
+        memset(&row->hl[i], HL_COMMENT, row->rsize - i);
+        break;
+
+      }
+
+    }
+
+    if (mcs_len && mce_len && !in_string) {
+
+      if (in_comment) {
+
+        row->hl[i] = HL_MLCOMMENT;
+
+        if (!strncmp(&row->render[i], mce, mce_len)) {
+
+          memset(&row->hl[i], HL_MLCOMMENT, mce_len);
+          i += mce_len;
+          in_comment = 0;
+          prev_sep = 1;
+          continue;
+
+        } 
+        else {
+
+          i++;
+          continue;
+
+        }
+
+      } 
+      else if (!strncmp(&row->render[i], mcs, mcs_len)) {
+
+        memset(&row->hl[i], HL_MLCOMMENT, mcs_len);
+        i += mcs_len;
+        in_comment = 1;
+        continue;
+
+      }
+
+    }
+
+    if (E.syntax->flags & HL_HIGHLIGHT_STRINGS) {
+
+      if (in_string) {
+
+        row->hl[i] = HL_STRING;
+
+        if (c == '\\' && i + 1 < row->rsize) {
+
+          row->hl[i + 1] = HL_STRING;
+          i += 2;
+          continue;
+
+        }
+        if (c == in_string)
+        	in_string = 0;
+
+        i++;
+        prev_sep = 1;
+        continue;
+
+      } 
+      else {
+
+        if (c == '"' || c == '\'') {
+
+          in_string = c;
+          row->hl[i] = HL_STRING;
+          i++;
+          continue;
+
+        }
+
+      }
+
+    }
+
+    if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+
+      if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)) {
+
+        row->hl[i] = HL_NUMBER;
+        i++;
+        prev_sep = 0;
+        continue;
+
+      }
+
+    }
+
+    if (prev_sep) {
+
+      int j;
+      for (j = 0; keywords[j]; j++) {
+
+        int klen = strlen(keywords[j]);
+        int kw2 = keywords[j][klen - 1] == '|';
+        if (kw2) klen--;
+
+        if (!strncmp(&row->render[i], keywords[j], klen) && is_separator(row->render[i + klen])) {
+
+          memset(&row->hl[i], kw2 ? HL_KEYWORD2 : HL_KEYWORD1, klen);
+          i += klen;
+          break;
+
+        }
+
+      }
+      if (keywords[j] != NULL) {
+
+        prev_sep = 0;
+        continue;
+      }
+
+    }
+    prev_sep = is_separator(c);
+    i++;
+
+  }
+
+  int changed = (row->hl_open_comment != in_comment);
+  row->hl_open_comment = in_comment;
+
+  if (changed && row->idx + 1 < E.numrows)
+    editorUpdateSyntax(&E.row[row->idx + 1]);
 
 }
+
 
 int editorSyntaxToColor(int hl){
 
 	switch(hl){
+
+		case HL_COMMENT:
+
+		case HL_MLCOMMENT: return 36;
+
+		case HL_KEYWORD1: return 33;
+
+		case HL_KEYWORD2: return 32;
+
+		case HL_STRING: return 35;
 
 		case HL_NUMBER: return 31; // Foreground red
 
@@ -423,6 +593,7 @@ void editorInsertRow(int at, char *s, size_t len){
 	E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
 	memmove(&E.row[at + 1], &E.row[at], sizeof(erow) * (E.numrows - at));
 
+	E.row[at].idx = at;
 
 	E.row[at].size = len;
 	E.row[at].chars = malloc(len + 1);
@@ -432,6 +603,8 @@ void editorInsertRow(int at, char *s, size_t len){
 	E.row[at].rsize = 0;
 	E.row[at].render = NULL;
 	E.row[at].hl = NULL;
+	E.row[at].hl_open_comment = 0;
+
 	editorUpdateRow(&E.row[at]);
 
 	E.numrows++;
@@ -452,6 +625,10 @@ void editorDelRow(int at){
 
 	editorFreeRow(&E.row[at]);
 	memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at - 1));
+
+	for(int j = at; j < E.numrows - 1; j++)
+		E.row[j].idx--;
+
 	E.numrows--;
 	E.dirty++;
 
@@ -560,7 +737,7 @@ void editorSave(){
 
 }
 // Save as prompt when new file is created 
-char *editorPrompt(char *prompt, void(*callback)(char *, int)) {
+char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
 
   size_t bufsize = 128;
   char *buf = malloc(bufsize);
@@ -649,7 +826,7 @@ void editorInsertNewline(){
 	else{
 
 		erow *row = &E.row[E.cy];
-		editorInsertRow(E.cy + 1,&row->chars[E.cx], row->size - E.cx);
+		editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
 		row = &E.row[E.cy];
 		row->size = E.cx;
 		row->chars[row->size] = '\0';
@@ -884,19 +1061,15 @@ void editorScroll(){
 	if(E.cy < E.rowoff)
 		E.rowoff = E.cy;
 
-	if(E.cy >= E.rowoff + E.screenrows){
+	if(E.cy >= E.rowoff + E.screenrows)
 		E.rowoff = E.cy - E.screenrows + 1;
-	}
 
-	if(E.rx < E.coloff){
-
+	if(E.rx < E.coloff)
 		E.coloff = E.rx;
-	}
 
-	if(E.rx >= E.coloff + E.screencols){
-
+	if(E.rx >= E.coloff + E.screencols)
 		E.coloff = E.rx - E.screencols + 1;
-	}
+
 }
 // Status bar drawing utility -> Inverted colors 
 void editorDrawStatusBar(struct abuf *ab){
@@ -947,6 +1120,7 @@ void editorDrawMessageBar(struct abuf *ab){
 }
 // Draw tildes in the buffer and not actual file 
 void editorDrawRows(struct abuf *ab) {
+
   int y;
 
   for (y = 0; y < E.screenrows; y++) {
@@ -962,7 +1136,8 @@ void editorDrawRows(struct abuf *ab) {
         int welcomelen = snprintf(welcome, sizeof(welcome),
           "Editor -- version %s", EDITOR_VERSION);
 
-        if (welcomelen > E.screencols) welcomelen = E.screencols;
+        if (welcomelen > E.screencols)
+        	welcomelen = E.screencols;
 
         int padding = (E.screencols - welcomelen) / 2;
 
@@ -972,7 +1147,9 @@ void editorDrawRows(struct abuf *ab) {
           padding--;
 
         }
-        while (padding--) abAppend(ab, " ", 1);
+        while (padding--)
+        	abAppend(ab, " ", 1);
+        
         abAppend(ab, welcome, welcomelen);
       } 
       else {
@@ -999,7 +1176,22 @@ void editorDrawRows(struct abuf *ab) {
 
       for(j = 0; j < len; j++){
 
-      		if(hl[j] == HL_NORMAL){
+      	  if (iscntrl(c[j])) {
+
+      	  	char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+          	abAppend(ab, "\x1b[7m", 4);
+          	abAppend(ab, &sym, 1);
+          	abAppend(ab, "\x1b[m", 3);
+
+          	if (current_color != -1) {
+
+            	char buf[16];
+            	int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_color);
+            	abAppend(ab, buf, clen);
+          	}
+
+          }
+      		else if(hl[j] == HL_NORMAL){
 
       			if(current_color != -1){
 
@@ -1171,6 +1363,10 @@ void editorProcessKeypress(){
 		case BACKSPACE:
 		case CTRL_KEY('h'):
 		case DEL_KEY:
+			if(c == DEL_KEY)
+				editorMoveCursor(ARROW_RIGHT);
+
+			editorDelChar();
 			break;
 
 		case PAGE_UP:
@@ -1251,9 +1447,10 @@ int main(int argc, char *argv[]){
 		editorOpen(argv[1]);
 	}
 
-	editorSetStatusMessage("HELP: Ctrl-S = Save | Ctrl-F = find | Ctrl-Q = Quit");
+	editorSetStatusMessage("HELP: Ctrl-S = Save | Ctrl-F = Find | Ctrl-Q = Quit");
 
 	while (1){
+
 		editorRefreshScreen();
 		editorProcessKeypress();
 	}
