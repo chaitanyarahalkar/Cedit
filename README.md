@@ -6,13 +6,38 @@ A minimalistic text editor for terminal fanatics
 
 ## What is Editor? 
 
-Editor is a zero-dependency text editor for the terminal. Editor is similar to other popular editors like Vim, Emacs, Nano etc. Editor is designed with the philosophy of minimalism and simplicity. It requires no external libraries (Not even [curses](https://en.wikipedia.org/wiki/Curses_(programming_library))) or dependencies for installation. It is just a single-file C program that caters all your editing needs. Editor can be compiled on any platform having GCC or the Clang C compiler. The idea behing Editor is to eliminate the key-binding complications of Vim and port the existing key-bindings of your familiar GUI based editors to CLI.
+Editor is a zero-dependency text editor for the terminal. Editor is similar to other popular editors like Vim, Emacs, Nano etc. Editor is designed with the philosophy of minimalism and simplicity. It requires no external libraries (Not even [curses](https://en.wikipedia.org/wiki/Curses_(programming_library))) or dependencies for installation. It is just a single-file C program that caters all your editing needs. Editor can be compiled on any platform having GCC or the Clang C compiler. The idea behing Editor is to eliminate the key-binding complications of Vim and port the existing key-bindings of your familiar GUI based editors to CLI. A statically compiled binary can allow it to run even on devices without the standard C library. This has facilitated the text editor to be used in embedded devices, routers, PoS terminals, which have very limited disk space. 
+
+## 
+
+## Features
+
+Editor is currently in beta mode. New features would be added in future stable releases.
+Editor supports:
+
+- Syntax highlighting supported for over 20 programming languages
+- Defining your own syntax for highlighting code blocks
+- Incremental string searching
+
+Improvements to be made in future releases:
+
+- Regex pattern searching
+- Soft indents
+- Line numbers
+- Reading from configuration file (.rc file)
+- Auto indentation
 
 
-## What can Editor do?
+## Building from Source
 
-Editor is currently in development mode. 
+Editor requires a standard C compiler like GCC or Clang and project building tool - [Make](https://www.gnu.org/software/make/)
 
-Editor can 
-1. Search
-2. Supports syntax highlighting 
+```bash
+
+build@editor$: make
+
+```
+
+will produce the editor binary with a single dynamically linked library - (libc.so.6 for Linux & libSystem.B.dylib for MacOS)
+A
+
