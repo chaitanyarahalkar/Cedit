@@ -37,7 +37,7 @@ build@editor$: make
 
 ```
 
-will produce the editor binary with a single dynamically linked library - (libc.so.6 for Linux & libSystem.B.dylib for MacOS)
+will produce the editor binary (cedit) with a single dynamically linked library - (libc.so.6 for Linux & libSystem.B.dylib for MacOS)
 
 
 ## Author
