@@ -57,5 +57,5 @@ Give a ⭐️ if this project helped you!
 
 #### License
 
-Copyright © 2019 [Chaitanya Rahalkar](https://github.com/chaitanyarahalkar).<br />
+Copyright © 2020 [Chaitanya Rahalkar](https://github.com/chaitanyarahalkar).<br />
 This project is [Apache 2.0](https://github.com/chaitanyarahalkar/Cedit/blob/master/LICENSE) licensed.
