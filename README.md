@@ -24,7 +24,7 @@ Improvements to be made in future releases:
 - Regex pattern searching
 - Soft indents
 - Line numbers
-- Reading from configuration file (.rc file)
+- Reading from configuration file (An rc file)
 - Auto indentation
 
 ## Building from Source
