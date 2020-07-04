@@ -12,7 +12,7 @@ Cedit is a zero-dependency text editor for the terminal. Cedit is similar to oth
 
 ## Features
 
-Cedit is currently in beta mode. New features would be added in future stable releases.
+Cedit is currently in beta stage. New features would be added in future stable releases.
 Cedit supports:
 
 - Syntax highlighting supported for over 20 programming languages
